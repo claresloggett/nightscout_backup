@@ -32,7 +32,7 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
     Get all BGL entries and return as a dataframe.
     '''
     requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
-    print(requeststring)
+    #print(requeststring)
     first_response = requests.get(requeststring)
     data = pd.DataFrame(first_response.json())
     if len(data)==0:
@@ -51,7 +51,7 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
         requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
         requeststring += f"&find[{datefield}][$lt]={earliest_datestr}"
-        print(requeststring)
+        #print(requeststring)
         response = requests.get(requeststring)
         data = pd.DataFrame(response.json())
         #print(data.columns)
@@ -68,8 +68,8 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
 
     data = pd.concat(all_data).drop_duplicates()
 
-    print(data.shape)
-    print(data.columns)
+    #print(data.shape)
+    #print(data.columns)
 
     return data
 
@@ -102,7 +102,7 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
     treatment type.
     '''
     requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
-    print(requeststring)
+    #print(requeststring)
     first_response = requests.get(requeststring)
     # In this case data is json, not dataframe
     data = first_response.json()
@@ -130,7 +130,7 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
         requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
         requeststring += f"&find[{datefield}][$lt]={earliest_datestr}"
-        print(requeststring)
+        #print(requeststring)
         response = requests.get(requeststring)
         data = response.json()
         if len(data)==0:
