@@ -7,11 +7,13 @@ multiple files nightscout_treatments_<treatmenttype>.csv.gz .
 '''
 
 # This is a simple implementation with some limitations:
-# - Dataframes are built and then written out; all data must fit in memory
 # - Server URL and other parameters are hard-coded - edit them below
+# - Dataframes are built and then written out; all data must fit in memory
 # - Backs up all data; can't specify date ranges or add incrementally to
 #   existing backups
 # - Any preexisting backup files are overwritten
+# - The "Profile Switch" treatment type is not currently parsed; profiles are
+#   just stored in their table as JSON strings
 
 # base_url must be replaced with the URL of your nightscout server
 base_url = ""
@@ -91,21 +93,6 @@ def split_data(data):
         else:
             result[et] = pd.DataFrame(events)
     return result
-
-'''
-# Currently unused
-def unpack_bolus_wizard(df):
-    """
-    Given the dataframe obtained by downloading events of eventType=="Bolus Wizard",
-    unpack the boluscalc field json into separate fields.
-    """
-    boluscalcfield = 'boluscalc'
-    if boluscalcfield not in df.columns:
-        raise ValueError("{} not found when trying to unpack bolus wizard data".format(boluscalcfield))
-    boluscalc_df = pd.DataFrame(list(df[boluscalcfield]))
-    print(df.shape, boluscalc_df.shape)
-    return pd.concat([df, boluscalc_df], axis=1)
-'''
 
 def get_treatments(api_endpoint='treatments', datefield='created_at'):
     '''
