@@ -186,7 +186,8 @@ def main():
     treatments = get_treatments()
     for eventtype, df in treatments.items():
         print(f"Saving {eventtype}")
-        df.to_csv(f'nightscout_treatments_{eventtype}.csv.gz', 
+        eventtype_no_whitespace = eventtype.replace(' ', '_')
+        df.to_csv(f'nightscout_treatments_{eventtype_no_whitespace}.csv.gz', 
             index=False, compression='gzip', quotechar="'", escapechar='\\')
 
 
