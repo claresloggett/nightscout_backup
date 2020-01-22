@@ -4,6 +4,8 @@ Back up all nightscout info to CSV files using the web API.
 BGL entries will be saved to nightscout_entries.csv.gz .
 Treatments (carbs, insulin, profile changes etc) will be saved to 
 multiple files nightscout_treatments_<treatmenttype>.csv.gz .
+Strings in CSV files will be quoted using single quotes ('),
+not double quotes (").
 '''
 
 # This is a simple implementation with some limitations:
@@ -23,6 +25,7 @@ max_records = None  # don't retrieve more than this, in total
 
 import requests
 import pandas as pd
+import json
 import sys
 from collections import defaultdict
 
@@ -77,19 +80,38 @@ def split_data(data):
     """
     Given a json list of events, split on event type and return a dict of
     DataFrames where the keys are event types.
-    Treat the "Bolus Wizard" event type differently: extract the boluscalc
-    field and parse dict into separate columns.
+    Treat the "Bolus Wizard" and "Profile Switch" event types differently: 
+    extract the boluscalc and profileJson fields respectively and parse dict 
+    into separate columns. For Profile Switch we will still end up with JSON 
+    strings in each column, separately describing the event's basal profile, 
+    carb ratio profile, etc.
+    Bolus Wizard parsed boluscalc fields will be prepended with boluscalc_,
+    e.g. boluscalc_bgdiff.
+    Profile Switch parsed profileJson fields will be prepended with profile_,
+    e.g. profile_carbratio.
     """
     result = dict()
     eventtypes_present = set([event['eventType'] for event in data])
     for et in eventtypes_present:
         events = [event for event in data if event['eventType']==et]
         if et=="Bolus Wizard":
+            # Parse and drop the boluscalc field
             result[et] = pd.DataFrame(events).drop('boluscalc', axis=1)
-            bc = pd.DataFrame([e['boluscalc'] for e in events if 'boluscalc' in e])
+            parsed = pd.DataFrame([e['boluscalc'] for e in events if 'boluscalc' in e])
+            # Bolus calculation does not exist in every Bolus Wizard record,
+            # so we need to only parse and fill in values that exist
             bc_exists = ['boluscalc' in e for e in events]
-            for field in bc:
-                result[et].loc[bc_exists, 'boluscalc_'+field] = bc[field]
+            for field in parsed:
+                result[et].loc[bc_exists, 'boluscalc_'+field] = parsed[field]
+        elif et=="Profile Switch":
+            # Parse and drop the profileJson field
+            result[et] = pd.DataFrame(events).drop('profileJson', axis=1)
+            profiles_json = [json.loads(e['profileJson']) for e in events]
+            # Create dataframe with separate profiles stored as json strings
+            parsed = pd.DataFrame([{k:json.dumps(v) for k,v in profile.items()} 
+                                    for profile in profiles_json])
+            for field in parsed:
+                result[et].loc[:, 'profile_'+field] = parsed[field]
         else:
             result[et] = pd.DataFrame(events)
     return result
@@ -157,13 +179,15 @@ def main():
     entries = get_entries()
     # Infering gzip from filename does not appear to work
     print("Saving entries")
-    entries.to_csv('nightscout_entries.csv.gz', index=False, compression='gzip')
+    entries.to_csv('nightscout_entries.csv.gz', 
+        index=False, compression='gzip', quotechar="'", escapechar='\\')
 
     print("Retrieving treatments")
     treatments = get_treatments()
     for eventtype, df in treatments.items():
         print(f"Saving {eventtype}")
-        df.to_csv(f'nightscout_treatments_{eventtype}.csv.gz', index=False, compression='gzip')
+        df.to_csv(f'nightscout_treatments_{eventtype}.csv.gz', 
+            index=False, compression='gzip', quotechar="'", escapechar='\\')
 
 
 if __name__=="__main__":
