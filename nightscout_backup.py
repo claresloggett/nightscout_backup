@@ -8,6 +8,8 @@ Strings in CSV files will be quoted using single quotes ('),
 not double quotes (").
 '''
 
+# Usage: python nightscout_backup.py -h
+
 # This is a simple implementation with some limitations:
 # - Server URL and other parameters are hard-coded - edit them below
 # - Dataframes are built and then written out; all data must fit in memory
@@ -17,28 +19,42 @@ not double quotes (").
 # - The "Profile Switch" treatment type is not currently parsed; profiles are
 #   just stored in their table as JSON strings
 
-# base_url must be replaced with the URL of your nightscout server
-base_url = ""
+# base_url must be replaced here with the URL of your nightscout server,
+# OR must be specified with -u on the command line
+default_base_url = ""
 # number of records to request at once
-batchsize = 2000
+default_batchsize = 2000
 # stop if we have retrieved more entries or treatments than this
-max_records = None  
-
-if batchsize > max_records:
-    batchsize = max_records
+default_max_records = None  
 
 import requests
 import pandas as pd
 import json
 import sys
+import argparse
 from collections import defaultdict
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('-u', '--url', 
+    help='URL of Nightscout server. Does not need the path to the API, just the base address.',
+    default=default_base_url)
+parser.add_argument('-b', '--batch', type=int, dest='batchsize',
+    help='number of records to request from the server at once',
+    default=default_batchsize)
+parser.add_argument('-m', '--max-records', type=int,
+    help='number of BGL entries or treatment records after which to stop (default is no limit)',
+    default=default_max_records)
+args = parser.parse_args()
+
+if args.max_records is not None and args.max_records < args.batchsize:
+    args.batchsize = args.max_records
 
 
 def get_entries(api_endpoint='entries', datefield='dateString'):
     '''
     Get all BGL entries and return as a dataframe.
     '''
-    requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
+    requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
     #print(requeststring)
     first_response = requests.get(requeststring)
     data = pd.DataFrame(first_response.json())
@@ -52,11 +68,11 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
     num_records = len(data)
     all_data = [data]
 
-    while max_records is None or num_records < max_records:
+    while args.max_records is None or num_records < args.max_records:
         earliest_datestr = data[datefield].iloc[-1]
         # where?find[dateString][$gte]=2016-09&find[dateString][$lte]=2016-10&find[sgv]=100`
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
-        requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
+        requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
         requeststring += f"&find[{datefield}][$lt]={earliest_datestr}"
         #print(requeststring)
         response = requests.get(requeststring)
@@ -69,9 +85,9 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
         ))
         all_data.append(data)
         num_records += len(data)
-        if max_records is not None and num_records >= max_records:
-            print("Max records exceeded, stopping")
-            break
+    
+    if args.max_records is not None and num_records >= args.max_records:
+        print("Max records reached")
 
     data = pd.concat(all_data).drop_duplicates()
 
@@ -127,7 +143,7 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
     Each dataframe only holds columns for the fields that occur in that
     treatment type.
     '''
-    requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
+    requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
     #print(requeststring)
     first_response = requests.get(requeststring)
     # In this case data is json, not dataframe
@@ -150,11 +166,11 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
     for eventtype, df in split_data(data).items():
         all_data[eventtype].append(df)
 
-    while max_records is None or num_records < max_records:
+    while args.max_records is None or num_records < args.max_records:
         earliest_datestr = data[-1][datefield]
         # where?find[dateString][$gte]=2016-09&find[dateString][$lte]=2016-10&find[sgv]=100`
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
-        requeststring = f"{base_url}api/v1/{api_endpoint}.json?count={batchsize}"
+        requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
         requeststring += f"&find[{datefield}][$lt]={earliest_datestr}"
         #print(requeststring)
         response = requests.get(requeststring)
@@ -168,10 +184,9 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
         for eventtype, df in split_data(data).items():
             all_data[eventtype].append(df)
         num_records += len(data)
-        if max_records is not None and num_records >= max_records:
-            print("Max records exceeded, stopping")
-            break
 
+    if args.max_records is not None and num_records >= args.max_records:
+        print("Max records reached")
 
     dataframes = {eventtype:pd.concat(dflist)  #.drop_duplicates()
                 for eventtype, dflist in all_data.items()}
