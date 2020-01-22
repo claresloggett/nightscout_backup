@@ -19,9 +19,13 @@ not double quotes (").
 
 # base_url must be replaced with the URL of your nightscout server
 base_url = ""
+# number of records to request at once
 batchsize = 2000
-max_records = None  # don't retrieve more entries or treatments than this
+# stop if we have retrieved more entries or treatments than this
+max_records = None  
 
+if batchsize > max_records:
+    batchsize = max_records
 
 import requests
 import pandas as pd
@@ -48,7 +52,7 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
     num_records = len(data)
     all_data = [data]
 
-    while True:
+    while max_records is None or num_records < max_records:
         earliest_datestr = data[datefield].iloc[-1]
         # where?find[dateString][$gte]=2016-09&find[dateString][$lte]=2016-10&find[sgv]=100`
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
@@ -146,7 +150,7 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
     for eventtype, df in split_data(data).items():
         all_data[eventtype].append(df)
 
-    while True:
+    while max_records is None or num_records < max_records:
         earliest_datestr = data[-1][datefield]
         # where?find[dateString][$gte]=2016-09&find[dateString][$lte]=2016-10&find[sgv]=100`
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
