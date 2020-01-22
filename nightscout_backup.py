@@ -20,7 +20,7 @@ not double quotes (").
 # base_url must be replaced with the URL of your nightscout server
 base_url = ""
 batchsize = 2000
-max_records = None  # don't retrieve more than this, in total
+max_records = None  # don't retrieve more entries or treatments than this
 
 
 import requests
@@ -164,7 +164,7 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
         for eventtype, df in split_data(data).items():
             all_data[eventtype].append(df)
         num_records += len(data)
-        if max_records > 0 and num_records >= max_records:
+        if max_records is not None and num_records >= max_records:
             print("Max records exceeded, stopping")
             break
 
