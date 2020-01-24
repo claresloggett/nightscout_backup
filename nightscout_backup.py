@@ -41,14 +41,17 @@ parser.add_argument('-u', '--url',
 parser.add_argument('-b', '--batch', type=int, dest='batchsize',
     help='number of records to request from the server at once',
     default=default_batchsize)
-parser.add_argument('-m', '--max-records', type=int,
+parser.add_argument('-m', '--max', type=int, dest='max_records',
     help='number of BGL entries or treatment records after which to stop (default is no limit)',
     default=default_max_records)
+parser.add_argument('-w', '--whitespace', default=False, action='store_true',
+    help='retain whitespace in treatment types in filenames (default is to replace spaces with underscores in filenames)')
 args = parser.parse_args()
 
 if args.max_records is not None and args.max_records < args.batchsize:
     args.batchsize = args.max_records
 
+print(args)
 
 def get_entries(api_endpoint='entries', datefield='dateString'):
     '''
@@ -205,8 +208,9 @@ def main():
     treatments = get_treatments()
     for eventtype, df in treatments.items():
         print(f"Saving {eventtype}")
-        eventtype_no_whitespace = eventtype.replace(' ', '_')
-        df.to_csv(f'nightscout_treatments_{eventtype_no_whitespace}.csv.gz', 
+        if not args.whitespace:
+            eventtype = eventtype.replace(' ', '_')
+        df.to_csv(f'nightscout_treatments_{eventtype}.csv.gz', 
             index=False, compression='gzip', quotechar="'", escapechar='\\')
 
 
