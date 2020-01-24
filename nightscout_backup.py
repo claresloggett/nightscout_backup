@@ -5,7 +5,7 @@ BGL entries will be saved to nightscout_entries.csv.gz .
 Treatments (carbs, insulin, profile changes etc) will be saved to 
 multiple files nightscout_treatments_<treatmenttype>.csv.gz .
 Strings in CSV files will be quoted using single quotes ('),
-not double quotes (").
+not double quotes (") and may contain double-quoted JSON.
 '''
 
 # Usage: python nightscout_backup.py -h
@@ -51,14 +51,12 @@ args = parser.parse_args()
 if args.max_records is not None and args.max_records < args.batchsize:
     args.batchsize = args.max_records
 
-print(args)
 
 def get_entries(api_endpoint='entries', datefield='dateString'):
     '''
     Get all BGL entries and return as a dataframe.
     '''
     requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
-    #print(requeststring)
     first_response = requests.get(requeststring)
     data = pd.DataFrame(first_response.json())
     if len(data)==0:
@@ -77,10 +75,8 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
         requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
         requeststring += f"&find[{datefield}][$lt]={earliest_datestr}"
-        #print(requeststring)
         response = requests.get(requeststring)
         data = pd.DataFrame(response.json())
-        #print(data.columns)
         if len(data)==0:
             break
         print("Retrieved {} records {} - {}".format(
@@ -93,9 +89,6 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
         print("Max records reached")
 
     data = pd.concat(all_data).drop_duplicates()
-
-    #print(data.shape)
-    #print(data.columns)
 
     return data
 
@@ -147,7 +140,6 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
     treatment type.
     '''
     requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
-    #print(requeststring)
     first_response = requests.get(requeststring)
     # In this case data is json, not dataframe
     data = first_response.json()
@@ -175,7 +167,6 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
         # should work as it's a datatime not just a date - there should only be an overlap of 1 at most
         requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
         requeststring += f"&find[{datefield}][$lt]={earliest_datestr}"
-        #print(requeststring)
         response = requests.get(requeststring)
         data = response.json()
         if len(data)==0:
