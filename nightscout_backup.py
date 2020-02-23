@@ -11,13 +11,13 @@ not double quotes (") and may contain double-quoted JSON.
 # Usage: python nightscout_backup.py -h
 
 # This is a simple implementation with some limitations:
-# - Server URL and other parameters are hard-coded - edit them below
 # - Dataframes are built and then written out; all data must fit in memory
 # - Backs up all data; can't specify date ranges or add incrementally to
 #   existing backups
 # - Any preexisting backup files are overwritten
-# - The "Profile Switch" treatment type is not currently parsed; profiles are
-#   just stored in their table as JSON strings
+# - The "Profile Switch" treatment type is only partially parsed; individual
+#   profiles (carbs profile, basal profile etc) are stored in their table as 
+#   JSON strings
 
 # base_url must be replaced here with the URL of your nightscout server,
 # OR must be specified with -u on the command line
