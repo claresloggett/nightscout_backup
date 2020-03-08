@@ -54,7 +54,20 @@ if args.max_records is not None and args.max_records < args.batchsize:
 
 def get_entries(api_endpoint='entries', datefield='dateString'):
     '''
-    Get all BGL entries and return as a dataframe.
+    Get BGL entries from server and return as a dataframe. Default behaviour
+    is to return all available entries. If the number of available
+    entries exceeds args.max_records, we stop after the current batch and
+    may not get all entries.
+
+    Args:
+      api_endpoint (str): The URL suffix used to specify which API endpoint we
+        are hitting. If for instance it is "entries" and our server URL is
+        "http://my-nightscout-server/", we will make requests to 
+        "http://my-nightscout-server/entries.json".
+      datefield (str): the API parameter used to restrict requested entries by date.
+    
+    Returns:
+      A Pandas DataFrame with one BGL entry per row.
     '''
     requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
     first_response = requests.get(requeststring)
@@ -94,17 +107,38 @@ def get_entries(api_endpoint='entries', datefield='dateString'):
 
 def split_data(data):
     """
-    Given a json list of events, split on event type and return a dict of
+    Split a list of events by event type.
+
+    Given a list of dicts, where each dict represents an individual event,
+    split on the event type as recorded in the dict's 'eventType' field.
+    Convert each subset of dicts to a DataFrame and return a dict of 
     DataFrames where the keys are event types.
-    Treat the "Bolus Wizard" and "Profile Switch" event types differently: 
-    extract the boluscalc and profileJson fields respectively and parse dict 
-    into separate columns. For Profile Switch we will still end up with JSON 
+
+    This is used by `get_treatments()` to split the retrieved treatment
+    records by treatment type. It may be called multiple times, once per 
+    batch.
+
+    The "Bolus Wizard" and "Profile Switch" event types are treated differently.
+    For "Bolus Wizard" events, we extract the boluscalc field and parse it as
+    JSON, separating its subfields into separate columns in the final 
+    DataFrame. For "Profile Switch" events, we extract the profileJson field
+    and do the same. For Profile Switch we will still end up with JSON 
     strings in each column, separately describing the event's basal profile, 
     carb ratio profile, etc.
     Bolus Wizard parsed boluscalc fields will be prepended with boluscalc_,
     e.g. boluscalc_bgdiff.
     Profile Switch parsed profileJson fields will be prepended with profile_,
     e.g. profile_carbratio.
+
+    Args:
+      data (list): The list of dicts representing the records.
+
+    Returns:
+      A dict, where keys are strings representing a treatment type ("Carbs", 
+      "Bolus Wizard", "Profile Switch" etc) and values are Pandas DataFrames
+      containing the corresponding treatment records, with one record per row.
+      Each DataFrame will have columns corresponding to the fields that exist
+      for records of that treatment type. 
     """
     result = dict()
     eventtypes_present = set([event['eventType'] for event in data])
@@ -134,10 +168,27 @@ def split_data(data):
 
 def get_treatments(api_endpoint='treatments', datefield='created_at'):
     '''
-    Get all treatments and return as a dict of dataframes, where keys 
-    are treatment types and values are corresponding dataframes.
-    Each dataframe only holds columns for the fields that occur in that
-    treatment type.
+    Get treatments from server and return as a dict of dataframes, where keys 
+    are treatment types and values are corresponding dataframes. "Treatments" 
+    in the NightScout API covers most things that are not BGL entries 
+    (insulin boluses, carbs eaten, switching profiles, etc). 
+    Default behaviour is to return all available treatment records. If the 
+    number of available records exceeds args.max_records, we stop after the 
+    current batch and may not get all records.
+
+    Args:
+      api_endpoint (str): The URL suffix used to specify which API endpoint we
+        are hitting. If for instance it is "treatments" and our server URL is
+        "http://my-nightscout-server/", we will make requests to 
+        "http://my-nightscout-server/treatments.json".
+      datefield (str): the API parameter used to restrict requested entries by date.
+    
+    Returns:
+      A dict, where keys are strings representing a treatment type ("Carbs", 
+      "Bolus Wizard", "Profile Switch" etc) and values are Pandas DataFrames
+      containing the corresponding treatment records, with one record per row.
+      Each DataFrame will have columns corresponding to the fields that exist
+      for records of that treatment type.
     '''
     requeststring = f"{args.url}api/v1/{api_endpoint}.json?count={args.batchsize}"
     first_response = requests.get(requeststring)
@@ -186,6 +237,7 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
                 for eventtype, dflist in all_data.items()}
     # TODO: check for duplicates following unpacking
     return dataframes
+
 
 def main():
     print("Retrieving BGL entries")
