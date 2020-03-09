@@ -6,6 +6,7 @@ Treatments (carbs, insulin, profile changes etc) will be saved to
 multiple files nightscout_treatments_<treatmenttype>.csv.gz .
 Strings in CSV files will be quoted using single quotes ('),
 not double quotes (") and may contain double-quoted JSON.
+NightScout profiles will be saved as JSON to profile.json .
 '''
 
 # Usage: python nightscout_backup.py -h
@@ -30,6 +31,7 @@ default_max_records = None
 import requests
 import pandas as pd
 import json
+import re
 import sys
 import argparse
 from collections import defaultdict
@@ -238,6 +240,58 @@ def get_treatments(api_endpoint='treatments', datefield='created_at'):
     # TODO: check for duplicates following unpacking
     return dataframes
 
+def print_profile_json(profiles):
+    '''
+    Use json.dumps to pretty-print an object, but give special treatment
+    to sub-objects representing successive rows of a time profile, so that
+    each timepoint is placed entirely on one line.
+
+    Partial example output:
+        [
+            {
+                "_id": "11111",
+                "defaultProfile": "20200101",
+                "store": {
+                "20200101": {
+                    "dia": "5",
+                    "carbratio": [
+                        { "time": "00:00", "value": "8", "timeAsSeconds": "0" },
+                        { "time": "06:00", "value": "7", "timeAsSeconds": "21600" },
+                        { "time": "10:00", "value": "8", "timeAsSeconds": "36000" }
+                    ],
+        ....
+
+    Args:
+      profiles: the object to represent as JSON
+    
+    Returns:
+      A string containing the custom pretty-printed JSON
+    '''
+    profile_string = json.dumps(profiles, indent=2)
+    # These re's remove excess newlines and whitespace from any JSON sub-object 
+    # containing 'time', 'value', and optionally 'timeAsSeconds' fields.
+    # A nicer way to compose would be with toolz curry and compose
+    result = re.sub("\{\s*(?=[^\{\}]*time[^\{\}]*value)", r'{ ', profile_string)
+    result = re.sub("(time[^\{\}]*)\,[\n\s]*([^\{\}]*value)", r'\1, \2', result)
+    result = re.sub("(value[^\{\}]*)\,[\n\s]*([^\{\}]*timeAsSeconds)", r'\1, \2', result)
+    result = re.sub("(time[^\{\}]*value[^\{\}]*?)[\s\n]*\}", r'\1 }', result)
+    return result
+
+
+# TODO: should we sanity-check profile data in here?
+def get_profiles():
+    '''
+    Retreive profile.json from server to be stored as JSON.
+
+    Returns:
+      The entire object encoded within profile.json. This is usually a list
+      containing a dict, where the dict contains all NightScout profiles.
+    '''
+    requeststring = f"{args.url}api/v1/profile.json"
+    response = requests.get(requeststring)
+    profiles = response.json()
+    return profiles
+
 
 def main():
     print("Retrieving BGL entries")
@@ -255,6 +309,11 @@ def main():
             eventtype = eventtype.replace(' ', '_')
         df.to_csv(f'nightscout_treatments_{eventtype}.csv.gz', 
             index=False, compression='gzip', quotechar="'", escapechar='\\')
+
+    print("Retrieving profiles")
+    profiles = get_profiles()
+    with open('profile.json', 'w') as f:
+        f.write(print_profile_json(profiles))
 
 
 if __name__=="__main__":
